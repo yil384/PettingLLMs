@@ -71,7 +71,7 @@ def load_problem_batch(
     """
     
     current_dir = Path(__file__).parent.parent.parent.parent
-    local_datasets_dir = current_dir / "data" / "code"
+    local_datasets_dir = current_dir / "datasets" / "code"
     
     if mode == "train":
         parquet_file = local_datasets_dir / "train" / f"{dataset_name}.parquet"
@@ -368,27 +368,40 @@ def extract_test_cases(text: str):
 
 
 
-def extract_code_from_response(response: str) -> str:
+def extract_code_from_response(response: str, code_type: str = "verilog") -> str:
     """
     Extract code from agent response.
     
     Args:
         response: Agent response string
+        code_type: Type of code to extract ("verilog", "systemc", or "python" for backward compatibility)
         
     Returns:
         Extracted code string
     """
-    # Look for Python code block
+    # Look for Verilog code block
+    if code_type == "verilog":
+        verilog_pattern = r'```verilog\s*(.*?)```'
+        matches = re.findall(verilog_pattern, response, re.DOTALL)
+        if matches:
+            return matches[-1].strip()  # Return the last code block
+    
+    # Look for SystemC code block
+    if code_type == "systemc":
+        systemc_pattern = r'```systemc\s*(.*?)```'
+        matches = re.findall(systemc_pattern, response, re.DOTALL)
+        if matches:
+            return matches[-1].strip()  # Return the last code block
+    
+    # Look for Python code block (for backward compatibility)
     python_pattern = r'```python\s*(.*?)```'
     matches = re.findall(python_pattern, response, re.DOTALL)
-    
     if matches:
-        return matches[-1].strip()  # Return the last code block
+        return matches[-1].strip()
     
     # Look for generic code block
     code_pattern = r'```\s*(.*?)```'
     matches = re.findall(code_pattern, response, re.DOTALL)
-    
     if matches:
         return matches[-1].strip()
     

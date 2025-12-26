@@ -297,3 +297,6 @@ local_config.py
 local_settings.py
 .local/
 config.local.*
+
+# checkpoint
+checkpoint/

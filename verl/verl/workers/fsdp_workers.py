@@ -212,9 +212,17 @@ class ActorRolloutRefWorker(Worker):
         self.tokenizer = hf_tokenizer(local_path, trust_remote_code=trust_remote_code)
         self.processor = hf_processor(local_path, trust_remote_code=trust_remote_code)
 
+        # Determine model dtype - should match FSDP param_dtype to avoid dtype mismatch
+        mixed_precision_config = fsdp_config.get("mixed_precision", None)
+        if mixed_precision_config is not None:
+            param_dtype_for_model = PrecisionType.to_dtype(mixed_precision_config.get("param_dtype", "bf16"))
+        else:
+            param_dtype_for_model = torch.bfloat16
+        
         torch_dtype = fsdp_config.get("model_dtype", None)
         if torch_dtype is None:
-            torch_dtype = torch.float32 if self._is_actor else torch.bfloat16
+            # Use param_dtype to ensure consistency with FSDP mixed precision
+            torch_dtype = param_dtype_for_model
         else:
             torch_dtype = PrecisionType.to_dtype(torch_dtype)
 
@@ -284,6 +292,14 @@ class ActorRolloutRefWorker(Worker):
                     'bias': "none"
                 }
                 actor_module = get_peft_model(actor_module, LoraConfig(**lora_config))
+                # Ensure all parameters and buffers are in the correct dtype after LoRA
+                # This is critical for FSDP which requires uniform dtype
+                for param in actor_module.parameters():
+                    if param.dtype != torch_dtype:
+                        param.data = param.data.to(torch_dtype)
+                for buffer in actor_module.buffers():
+                    if buffer.dtype != torch_dtype and buffer.requires_grad == False:
+                        buffer.data = buffer.data.to(torch_dtype)
         torch.distributed.barrier()
 
         if self.rank == 0:
@@ -606,6 +622,9 @@ class ActorRolloutRefWorker(Worker):
             # get the original unwrapped module
             if fsdp_version(self.actor_module_fsdp) == 1:
                 self.actor_module = self.actor_module_fsdp._fsdp_wrapped_module
+            else:
+                # For FSDP v2, actor_module_fsdp is already the unwrapped module
+                self.actor_module = self.actor_module_fsdp
 
             if self._is_offload_param:
                 offload_fsdp_model_to_cpu(self.actor_module_fsdp)
@@ -619,6 +638,10 @@ class ActorRolloutRefWorker(Worker):
             if self._is_actor and self._is_lora:
                 self.lora_num = getattr(self.config, 'lora_num', 1)
                 agent_lora_mapping = getattr(self.config, 'agent_lora_mapping', None)
+
+                # Ensure actor_module is available
+                if not hasattr(self, 'actor_module'):
+                    self.actor_module = self.actor_module_fsdp
 
                 if isinstance(self.actor_module, PeftModel):
                     if self.lora_num == 1:

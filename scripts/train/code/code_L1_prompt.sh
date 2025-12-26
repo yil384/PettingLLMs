@@ -19,7 +19,7 @@ export LD_LIBRARY_PATH=$CUDA_HOME/targets/x86_64-linux/lib:${LD_LIBRARY_PATH}
 export LD_LIBRARY_PATH=$CUDA_HOME/lib64:${LD_LIBRARY_PATH}
 
 
-GPU_num=1
+GPU_num=8
 
 
 model_0_config_path="models.model_0.ppo_trainer_config"
@@ -28,7 +28,7 @@ model_0_resource="resource.n_gpus_per_node=$GPU_num  $model_0_config_path.traine
 
 python3 -m pettingllms.trainer.train --config-path ../config/code --config-name code_L1_prompt \
     $model_0_resource \
-    base_models.policy_0.path="your base model path"\
+    base_models.policy_0.path="Qwen/Qwen3-0.6B"\
     training.experiment_name=code_prompt\
     training.total_training_steps=200\
     training.train_batch_size=32\

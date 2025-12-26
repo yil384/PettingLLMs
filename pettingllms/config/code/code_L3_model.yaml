@@ -1,13 +1,14 @@
 defaults:
 - ../ppo_trainer@models.model_0.ppo_trainer_config: eval
 - ../ppo_trainer@models.model_1.ppo_trainer_config: eval
+- ../ppo_trainer@models.model_2.ppo_trainer_config: eval
 - _self_
 specialization: full
 lora_rank: 16
 lora_alpha: 32
 resource:
   nnodes: 1
-  n_gpus_per_node: 8
+  n_gpus_per_node: 4  # Default to 4, can be overridden by command line
   trust_remote_code: true
 env:
   name: code_env
@@ -19,16 +20,19 @@ env:
   batched_init: true
 base_models:
   policy_0:
-    path: your base model path
-    name: code_generator_model
+    path: Qwen/Qwen3-0.6B
+    name: codeV_generator_model
   policy_1:
-    path: your base model path
-    name: test_generator_model
+    path: Qwen/Qwen3-0.6B
+    name: codeC_generator_model
+  policy_2:
+    path: Qwen/Qwen3-0.6B
+    name: testbench_generator_model
 agent_policy_configs:
   agent_configs:
     agent_0:
-      name: code_generator
-      policy_name: code_generator_model
+      name: codeV_generator
+      policy_name: codeV_generator_model
       train_llm_config:
         enable_thinking: false
         temperature: 1.0
@@ -42,8 +46,23 @@ agent_policy_configs:
         top_k: 20
         min_p: 0.0
     agent_1:
-      name: test_generator
-      policy_name: test_generator_model
+      name: codeC_generator
+      policy_name: codeC_generator_model
+      train_llm_config:
+        enable_thinking: false
+        temperature: 1.0
+        top_p: 0.9
+        top_k: 20
+        min_p: 0.0
+      val_llm_config:
+        enable_thinking: false
+        temperature: 0.6
+        top_p: 0.95
+        top_k: 20
+        min_p: 0.0
+    agent_2:
+      name: testbench_generator
+      policy_name: testbench_generator_model
       train_llm_config:
         enable_thinking: false
         temperature: 1.0
@@ -58,8 +77,9 @@ agent_policy_configs:
         min_p: 0.0
 multi_agent_interaction:
   turn_order:
-  - code_generator
-  - test_generator
+  - codeV_generator
+  - codeC_generator
+  - testbench_generator
   parallel: true
 training:
   device: cuda
@@ -76,6 +96,7 @@ training:
   validate_sample_num: 1
   sample_temperature: 1
   val_freq: 10
+  resample_freq: 3
   max_prompt_length: 4096
   max_response_length: 2048
   lora_rank: ${lora_rank}
@@ -97,7 +118,7 @@ models:
           temperature: ${training.sample_temperature}
           prompt_length: ${training.max_prompt_length}
           response_length: ${training.max_response_length}
-          tensor_model_parallel_size: ${resource.n_gpus_per_node}
+          tensor_model_parallel_size: 1  # Use 1 GPU per model since we have 3 models and only 4 GPUs
         trainer:
           n_gpus_per_node: ${resource.n_gpus_per_node}
           n_training_gpus_per_node: ${resource.n_gpus_per_node}
@@ -117,7 +138,27 @@ models:
           temperature: ${training.sample_temperature}
           prompt_length: ${training.max_prompt_length}
           response_length: ${training.max_response_length}
-          tensor_model_parallel_size: ${resource.n_gpus_per_node}
+          tensor_model_parallel_size: 1  # Use 1 GPU per model since we have 3 models and only 4 GPUs
+        trainer:
+          n_gpus_per_node: ${resource.n_gpus_per_node}
+          n_training_gpus_per_node: ${resource.n_gpus_per_node}
+  model_2:
+    path: ${base_models.policy_2.path}
+    name: ${base_models.policy_2.name}
+    ppo_trainer_config:
+      filter_method: dapo
+      filter_ratio: 0
+      data:
+        max_prompt_length: ${training.max_prompt_length}
+        max_response_length: ${training.max_response_length}
+      actor_rollout_ref:
+        model:
+          path: ${base_models.policy_2.path}
+        rollout:
+          temperature: ${training.sample_temperature}
+          prompt_length: ${training.max_prompt_length}
+          response_length: ${training.max_response_length}
+          tensor_model_parallel_size: 1  # Use 1 GPU per model since we have 3 models and only 4 GPUs
         trainer:
           n_gpus_per_node: ${resource.n_gpus_per_node}
           n_training_gpus_per_node: ${resource.n_gpus_per_node}

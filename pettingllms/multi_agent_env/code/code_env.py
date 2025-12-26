@@ -7,8 +7,8 @@ import typing
 import multiprocessing as mp
 from typing import Any, Dict, Optional, Tuple, List
 
-from pettingllms.multi_agent_env.code.agents.code_agent import CodeGenerationAgent
-from pettingllms.multi_agent_env.code.agents.unit_test_agent import UnitTestGenerationAgent
+from pettingllms.multi_agent_env.code.agents.code_agent import VerilogGenerationAgent
+from pettingllms.multi_agent_env.code.agents.unit_test_agent import SystemCGenerationAgent
 from pettingllms.multi_agent_env.base.env import Env
 from pettingllms.multi_agent_env.code.code_utils import (
         load_problem_batch,
@@ -22,33 +22,27 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CodeEnvState:
     problem: str=None
-    golden_code: str=None
-    generated_code_history: List[str]=field(default_factory=list)
-    generated_code: str=None
-    generated_test_input: List[str]=None
-    generated_test_output: List[str]=None
-    ground_truth_test_input: List[str]=None
-    ground_truth_test_output: List[str]=None
-    exe_code_generated_test_output: List[str]=None
-    exe_code_ground_truth_test_output: List[str]=None
-    # Evaluation results: generated test vs generated code
-    ground_truth_test_vs_generated_code_mismatch_cases: List[Dict]=None
-    ground_truth_test_vs_generated_code_match_cases: List[Dict]=None
-    ground_truth_test_vs_generated_code_match_ratio: float=0
-    generated_test_vs_generated_code_match_cases: List[Dict]=None
-    generated_test_vs_generated_code_mismatch_cases: List[Dict]=None
-    generated_test_vs_generated_code_mismatch_cases_history: List[Dict]=field(default_factory=list)
-    generated_test_vs_generated_code_match_ratio: float=0
-    generated_test_vs_golden_code_match_cases: List[Dict]=None
-    generated_test_vs_golden_code_mismatch_cases: List[Dict]=None
-    generated_test_vs_golden_code_match_ratio: float=0
+    golden_verilog_code: str=None
+    golden_systemc_code: str=None
+    generated_verilog_code_history: List[str]=field(default_factory=list)
+    generated_systemc_code_history: List[str]=field(default_factory=list)
+    generated_verilog_code: str=None
+    generated_systemc_code: str=None
+    both_codes_generated: bool=False
+    # Test stimulus (testbench) - can come from dataset or be generated
+    test_input: List[str]=None  # Test input vectors/stimulus for hardware verification
+    test_output: List[str]=None  # Expected test outputs for hardware verification
+    generated_testbench: str=None  # Generated testbench code (if any agent generates it)
+    # For backward compatibility, keep some old fields but mark as deprecated
+    generated_code_history: List[str]=field(default_factory=list)  # Deprecated
+    generated_code: str=None  # Deprecated
 
 class CodeEnv(Env):
     """
-    Environment for code generation and testing tasks with dual-agent interaction.
+    Environment for hardware code generation tasks with dual-agent interaction.
     
-    This environment coordinates between code generation and unit test generation agents,
-    similar to how WebEnv coordinates between code and visual agents.
+    This environment coordinates between Verilog code generation and SystemC code generation agents,
+    where both agents generate hardware design code for the same problem.
     """
 
     def __init__(
@@ -72,23 +66,16 @@ class CodeEnv(Env):
    
 
     def reset(self):
-
+        self.state.generated_verilog_code=None
+        self.state.generated_systemc_code=None
+        self.state.generated_verilog_code_history=[]
+        self.state.generated_systemc_code_history=[]
+        self.state.both_codes_generated=False
+        self.state.generated_testbench=None
+        # Note: test_input and test_output are kept from problem loading
+        # Deprecated fields for backward compatibility
         self.state.generated_code=None
         self.state.generated_code_history=[]
-        self.state.generated_test_input=None
-        self.state.generated_test_output=None
-        self.state.exe_code_generated_test_output=None
-        self.state.exe_code_ground_truth_test_output=None
-        self.state.ground_truth_test_vs_generated_code_mismatch_cases=None
-        self.state.ground_truth_test_vs_generated_code_match_cases=None
-        self.state.ground_truth_test_vs_generated_code_match_ratio=0
-        self.state.generated_test_vs_generated_code_match_cases=None
-        self.state.generated_test_vs_generated_code_mismatch_cases=None
-        self.state.generated_test_vs_generated_code_mismatch_cases_history=[]
-        self.state.generated_test_vs_generated_code_match_ratio=0
-        self.state.generated_test_vs_golden_code_match_cases=None
-        self.state.generated_test_vs_golden_code_mismatch_cases=None
-        self.state.generated_test_vs_golden_code_match_ratio=0
 
 
 class CodeEnvBatch:
@@ -110,9 +97,14 @@ class CodeEnvBatch:
    
 
         for i,problem in enumerate(self.problem_list):
-            ground_truth_test_input=problem["test_input"]
-            ground_truth_test_output=problem["test_output"]
-            state=CodeEnvState(problem=problem["question"],ground_truth_test_input=ground_truth_test_input,ground_truth_test_output=ground_truth_test_output)
+            # Load test stimulus if available in dataset (for hardware verification)
+            test_input = problem.get("test_input", None)
+            test_output = problem.get("test_output", None)
+            state=CodeEnvState(
+                problem=problem["question"],
+                test_input=test_input,
+                test_output=test_output
+            )
             for s in range(samples):
                 env=CodeEnv(env_idx=i, rollout_idx=rollout_idx_list[i*samples+s], max_turns=max_turns, config=None)
                 env.state=copy.deepcopy(state)
