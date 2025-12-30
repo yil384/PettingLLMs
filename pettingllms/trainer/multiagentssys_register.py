@@ -45,16 +45,17 @@ AGENT_CLASSES = {
     "base_agent": safe_import("pettingllms.multi_agent_env.base.agent", "BaseAgent"),
 
     # Code agents - Hardware code generation (Verilog and SystemC)
-    "verilog_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_agent", "VerilogGenerationAgent"),
-    "systemc_generator": safe_import("pettingllms.multi_agent_env.code.agents.unit_test_agent", "SystemCGenerationAgent"),
+    "verilog_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_v_agent", "VerilogGenerationAgent"),
+    "systemc_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_c_agent", "SystemCGenerationAgent"),
     "testbench_generator": safe_import("pettingllms.multi_agent_env.code.agents.testbench_agent", "TestbenchGenerationAgent"),
-    "codeV_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_agent", "VerilogGenerationAgent"),
-    "codeC_generator": safe_import("pettingllms.multi_agent_env.code.agents.unit_test_agent", "SystemCGenerationAgent"),
+    "verification_agent": safe_import("pettingllms.multi_agent_env.code.agents.verification_agent", "VerificationAgent"),
+    "codeV_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_v_agent", "VerilogGenerationAgent"),
+    "codeC_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_c_agent", "SystemCGenerationAgent"),
     # Backward compatibility aliases (deprecated)
-    "code_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_agent", "VerilogGenerationAgent"),
-    "multiagent_code_agent": safe_import("pettingllms.multi_agent_env.code.agents.code_agent", "VerilogGenerationAgent"),
-    "test_generator": safe_import("pettingllms.multi_agent_env.code.agents.unit_test_agent", "SystemCGenerationAgent"),
-    "unit_test_agent": safe_import("pettingllms.multi_agent_env.code.agents.unit_test_agent", "SystemCGenerationAgent"),
+    "code_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_v_agent", "VerilogGenerationAgent"),
+    "multiagent_code_agent": safe_import("pettingllms.multi_agent_env.code.agents.code_v_agent", "VerilogGenerationAgent"),
+    "test_generator": safe_import("pettingllms.multi_agent_env.code.agents.code_c_agent", "SystemCGenerationAgent"),
+    "unit_test_agent": safe_import("pettingllms.multi_agent_env.code.agents.code_c_agent", "SystemCGenerationAgent"),
     "code_selfverify_single_agent": safe_import("pettingllms.multi_agent_env.code.agents.selfverify_single_agent", "CodeGenerationAgent"),
 
     # Math agents
@@ -88,7 +89,7 @@ AGENT_CLASSES = {
 # Environment Worker Classes (Turn-based)
 # ============================================================================
 ENV_WORKER_CLASSES = {
-    "code_env": safe_import("pettingllms.mu.code.code_worker", "get_ray_docker_worker_cls"),
+    "code_env": safe_import("pettingllms.multi_agent_env.code.code_worker", "get_ray_docker_worker_cls"),
     "math_env": safe_import("pettingllms.multi_agent_env.math.math_worker", "get_ray_docker_worker_cls"),
     "math_aggretion_env": safe_import("pettingllms.multi_agent_env.math.math_worker", "get_ray_docker_worker_cls"),
     "search_env": safe_import("pettingllms.multi_agent_env.math.math_worker", "get_ray_docker_worker_cls"),

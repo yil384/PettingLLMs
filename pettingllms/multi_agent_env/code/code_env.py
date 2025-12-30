@@ -5,10 +5,12 @@ import sys
 import time
 import typing
 import multiprocessing as mp
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List, Union
 
-from pettingllms.multi_agent_env.code.agents.code_agent import VerilogGenerationAgent
-from pettingllms.multi_agent_env.code.agents.unit_test_agent import SystemCGenerationAgent
+from pettingllms.multi_agent_env.code.agents.code_v_agent import VerilogGenerationAgent
+from pettingllms.multi_agent_env.code.agents.code_c_agent import SystemCGenerationAgent
+from pettingllms.multi_agent_env.code.agents.testbench_agent import TestbenchGenerationAgent
+from pettingllms.multi_agent_env.code.agents.verification_agent import VerificationAgent
 from pettingllms.multi_agent_env.base.env import Env
 from pettingllms.multi_agent_env.code.code_utils import (
         load_problem_batch,
@@ -33,6 +35,14 @@ class CodeEnvState:
     test_input: List[str]=None  # Test input vectors/stimulus for hardware verification
     test_output: List[str]=None  # Expected test outputs for hardware verification
     generated_testbench: str=None  # Generated testbench code (if any agent generates it)
+    # Port information extracted from Verilog code
+    extracted_ports: Dict=field(default_factory=dict)
+    # Functional equivalence verification results
+    verification_result: Dict=field(default_factory=dict)  # Result from verify_functional_equivalence
+    equivalence_verified: bool=False  # True if verification was run
+    is_equivalent: bool=False  # True if Verilog and SystemC are functionally equivalent
+    match_ratio: float=0.0  # Ratio of matching outputs (0.0 to 1.0)
+    verification_details: str=""  # Human-readable verification details
     # For backward compatibility, keep some old fields but mark as deprecated
     generated_code_history: List[str]=field(default_factory=list)  # Deprecated
     generated_code: str=None  # Deprecated
@@ -72,6 +82,13 @@ class CodeEnv(Env):
         self.state.generated_systemc_code_history=[]
         self.state.both_codes_generated=False
         self.state.generated_testbench=None
+        # Reset port info and verification state
+        self.state.extracted_ports={}
+        self.state.verification_result={}
+        self.state.equivalence_verified=False
+        self.state.is_equivalent=False
+        self.state.match_ratio=0.0
+        self.state.verification_details=""
         # Note: test_input and test_output are kept from problem loading
         # Deprecated fields for backward compatibility
         self.state.generated_code=None
